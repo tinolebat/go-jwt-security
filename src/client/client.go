@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -13,18 +15,19 @@ import (
 
 // var mySigningKey = []byte("myimportantsecret")
 
-func getEnvVariable(key string) string {
+// GetEnvVariable Get the Environment variables
+func GetEnvVariable(key string) string {
 
-	err := godotenv.Load(".env")
+	err := godotenv.Load("../config/.env")
 	if err != nil {
 		fmt.Println("Error loading .env file")
 	}
 	return os.Getenv(key)
 }
 
-func GenerateJWT() (string, error) {
+func generateJWT() (string, error) {
 
-	key := getEnvVariable("JWT_TKN_0")
+	key := GetEnvVariable("JWT_TKN_0")
 	mySigningKey := []byte(key)
 
 	token := jwt.New(jwt.SigningMethodHS256)
@@ -45,21 +48,34 @@ func GenerateJWT() (string, error) {
 }
 
 func homePage(w http.ResponseWriter, r *http.Request) {
-	validToken, err := GenerateJWT()
+	validToken, err := generateJWT()
 	if err != nil {
 		fmt.Fprintf(w, err.Error())
 	}
 
-	fmt.Fprintf(w, validToken)
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", "http://localhost:8080", nil)
+	req.Header.Set("Token", validToken)
+	res, err := client.Do(req)
+	if err != nil {
+		fmt.Fprintf(w, "Error: %s", err.Error())
+	}
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Fprintf(w, "Error: %s", err.Error())
+	}
+
+	fmt.Fprintf(w, string(body))
+}
+
+func handleRequest() {
+	http.HandleFunc("/", homePage)
+	log.Fatal(http.ListenAndServe(":8081", nil))
 }
 
 func main() {
 	fmt.Println("Client")
+	handleRequest()
 
-	tokenString, err := GenerateJWT()
-	if err != nil {
-		fmt.Errorf("Error generating token: %s", err.Error())
-	}
-
-	fmt.Println(tokenString)
 }
